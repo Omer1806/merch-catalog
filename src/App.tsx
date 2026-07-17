@@ -7,7 +7,7 @@ import { AuthorCard } from './components/AuthorCard';
 import type { Author } from './components/AuthorCard';
 import type { ArtistProduct } from './mockData';
 import { AUTHORS } from './authorsData';
-import logo from './assets/Kurisu-shop-avatar.jpg';
+import logo from './assets/kurisu-fixed.png';
 import FloatingImageLink from "./components/FloatingImageLink";
 
 // Константи
