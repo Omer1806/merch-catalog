@@ -5,13 +5,9 @@ import ProductCard from './components/ProductCard';
 import AdminPanel from './components/AdminPanel';
 import { AuthorCard } from './components/AuthorCard';
 import type { Author } from './components/AuthorCard';
-import { AUTHORS } from './authorsData';
+
 import logo from './assets/kurisu-shop-avatar.jpg';
 import FloatingImageLink from "./components/FloatingImageLink";
-
-// Константи
-const TELEGRAM_TOKEN = '8775088762:AAGamPabFInSAulH9dPH7oTdrjYH7lQm8qU';
-const TELEGRAM_CHAT_ID = '422278955';
 
 interface CartItem {
   product: Product;
@@ -42,7 +38,7 @@ export default function App() {
   const PRODUCTS_PER_PAGE = 8;
 
  const [products, setProducts] = useState<Product[]>([]);
-  const [authors, setAuthors] = useState<Author[]>(AUTHORS);
+  const [authors, setAuthors] = useState<Author[]>([]);
   const [formErrors, setFormErrors] = useState<Partial<OrderForm>>({});
   const [form, setForm] = useState<OrderForm>({
     name: '', phone: '', city: '', nova_poshta: ''
