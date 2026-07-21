@@ -25,6 +25,7 @@ export interface Author {
 
 export function AuthorCard({ author, onSelect }: { author: Author; onSelect?: (author: Author) => void }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [tilt, setTilt] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!isOpen) return;
@@ -37,6 +38,19 @@ export function AuthorCard({ author, onSelect }: { author: Author; onSelect?: (a
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen]);
 
+  const handlePointerMove = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
+
+    setTilt({
+      x: (0.5 - px) * 8,
+      y: (py - 0.5) * 8,
+    });
+  };
+
+  const resetTilt = () => setTilt({ x: 0, y: 0 });
+
   return (
     <>
       {/* Картка у списку */}
@@ -46,16 +60,23 @@ export function AuthorCard({ author, onSelect }: { author: Author; onSelect?: (a
           onSelect?.(author);
           setIsOpen(true);
         }}
-        className="w-full border-2 border-black p-4 rounded-lg shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white cursor-pointer hover:-translate-y-0.5 hover:shadow-[4px_4px_0px_rgba(0,0,0,1)] transition-all text-left"
+        onMouseMove={handlePointerMove}
+        onMouseLeave={resetTilt}
+        className="group relative w-full border-2 border-black p-4 rounded-lg shadow-[3px_3px_0px_rgba(0,0,0,1)] bg-white cursor-pointer text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-[6px_6px_0px_rgba(0,0,0,1)]"
+        style={{
+          transform: `perspective(1000px) rotateX(${tilt.y}deg) rotateY(${tilt.x}deg)`,
+          transition: 'transform 180ms ease-out, box-shadow 180ms ease-out, translate 180ms ease-out',
+        }}
       >
+        <div className="pointer-events-none absolute inset-0 rounded-[inherit] bg-gradient-to-br from-[#DBFA40]/40 via-transparent to-[#FF4FA3]/30 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
         <img
           src={author.avatarUrl}
           alt={author.name}
-          className="w-20 h-20 rounded-full object-cover border-2 border-black mb-3"
+          className="relative z-10 w-20 h-20 rounded-full object-cover border-2 border-black mb-3 transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-3"
         />
-        <h3 className="font-black text-lg text-black">{author.name}</h3>
-        <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">{author.location}</p>
-        <p className="text-sm text-gray-700 line-clamp-3">{author.bio}</p>
+        <h3 className="relative z-10 font-black text-lg text-black">{author.name}</h3>
+        <p className="relative z-10 text-xs text-gray-500 font-bold uppercase tracking-wider mb-2">{author.location}</p>
+        <p className="relative z-10 text-sm text-gray-700 line-clamp-3">{author.bio}</p>
       </button>
 
       {/* Модальне вікно з деталями */}

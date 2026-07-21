@@ -7,7 +7,7 @@ export default function FloatingImageLink() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Telegram KURISU"
-      className="fixed bottom-4 right-4 z-50 group"
+      className="fixed bottom-4 right-4 z-50 group cursor-pointer"
     >
       <img
         src={kurisuFixed}

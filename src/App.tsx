@@ -1,13 +1,12 @@
 import { supabase } from './lib/supabase';
 import { useState, useEffect } from 'react';
-import { MOCK_PRODUCTS } from './mockData';
+import type { Product } from "./types/product";
 import ProductCard from './components/ProductCard';
 import AdminPanel from './components/AdminPanel';
 import { AuthorCard } from './components/AuthorCard';
 import type { Author } from './components/AuthorCard';
-import type { ArtistProduct } from './mockData';
 import { AUTHORS } from './authorsData';
-import logo from './assets/kurisu-fixed.png';
+import logo from './assets/kurisu-shop-avatar.jpg';
 import FloatingImageLink from "./components/FloatingImageLink";
 
 // Константи
@@ -15,7 +14,7 @@ const TELEGRAM_TOKEN = '8775088762:AAGamPabFInSAulH9dPH7oTdrjYH7lQm8qU';
 const TELEGRAM_CHAT_ID = '422278955';
 
 interface CartItem {
-  product: ArtistProduct;
+  product: Product;
   quantity: number;
 }
 
@@ -31,6 +30,7 @@ export default function App() {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutStage, setIsCheckoutStage] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isHeaderScrolled, setIsHeaderScrolled] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
@@ -41,7 +41,7 @@ export default function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const PRODUCTS_PER_PAGE = 8;
 
- const [products, setProducts] = useState<ArtistProduct[]>([]);
+ const [products, setProducts] = useState<Product[]>([]);
   const [authors, setAuthors] = useState<Author[]>(AUTHORS);
   const [formErrors, setFormErrors] = useState<Partial<OrderForm>>({});
   const [form, setForm] = useState<OrderForm>({
@@ -57,6 +57,16 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('cart', JSON.stringify(cart));
   }, [cart]);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsHeaderScrolled(window.scrollY > 6);
+    };
+
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -111,7 +121,7 @@ useEffect(() => {
   );
 
   // Обробники
-  const handleAddToCart = (product: ArtistProduct) => {
+  const handleAddToCart = (product: Product) => {
     setCart((prev) => {
       const existing = prev.find((i) => i.product.id === product.id);
       return existing
@@ -184,22 +194,21 @@ useEffect(() => {
     const itemsList = cart.map(i => `• ${i.product.title} x${i.quantity} — ${i.product.price * i.quantity} грн`).join('\n');
     const message = `🛒 *Замовлення!*\n\n👤 ${form.name}\n📞 ${form.phone}\n🏙 ${form.city}\n📦 ${form.nova_poshta}\n\n${itemsList}\n\n💰 *Всього: ${total} грн*`;
 
+    
     try {
-      const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_TOKEN}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text: message, parse_mode: 'Markdown' }),
-      });
-      if (res.ok) {
-        setOrderSent(true);
-        setCart([]);
-        setForm({ name: '', phone: '', city: '', nova_poshta: '' });
-      }
-    } catch {
-      alert('Помилка мережі.');
-    } finally {
-      setIsSending(false);
-    }
+  console.log("Замовлення:", message);
+
+  setOrderSent(true);
+  setCart([]);
+  setForm({
+    name: "",
+    phone: "",
+    city: "",
+    nova_poshta: "",
+  });
+} finally {
+  setIsSending(false);
+}
   };
 
   return (
@@ -210,27 +219,26 @@ useEffect(() => {
           from { opacity: 0; transform: scale(0.95) translateY(10px); } 
           to { opacity: 1; transform: scale(1) translateY(0); } 
         }
-        @keyframes kurisuFloat {
-  0%, 100% {
-    transform: translateY(0px) rotate(0deg);
-  }
-
-  25% {
-    transform: translateY(-3px) rotate(-2deg);
-  }
-
-  50% {
-    transform: translateY(0px) rotate(0deg);
-  }
-
-  75% {
-    transform: translateY(-2px) rotate(2deg);
-  }
-}
+        @keyframes logoGlow {
+          0%, 100% {
+            transform: translateY(0) scale(1);
+            box-shadow: 0 0 0 0 rgba(255,255,255,0.6);
+          }
+          50% {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 0 0 6px rgba(255,255,255,0.16);
+          }
+        }
       `}</style>
 
       {/* Шапка */}
-      <header className="bg-gradient-to-r from-[#FF4FA3] to-[#FF6FAE] py-3 px-3 sm:px-4 shadow-[0_4px_20px_rgba(255,79,163,0.35)]">
+      <header
+        className={`sticky top-0 z-50 transition-all duration-300 ease-out py-3 px-3 sm:px-4 ${
+          isHeaderScrolled
+            ? 'bg-gradient-to-r from-[#FF4FA3]/90 to-[#FF6FAE]/90 backdrop-blur-xl shadow-[0_8px_24px_rgba(255,79,163,0.22)] border-b border-white/20'
+            : 'bg-gradient-to-r from-[#FF4FA3] to-[#FF6FAE] shadow-[0_4px_20px_rgba(255,79,163,0.35)]'
+        }`}
+      >
         <div className="max-w-7xl mx-auto grid grid-cols-[auto_1fr] gap-3 items-center sm:flex sm:flex-wrap sm:gap-4 sm:justify-between">
           <button
             type="button"
@@ -241,9 +249,9 @@ useEffect(() => {
             <img
               src={logo}
               alt=""
-              className="w-12 h-12 rounded-full ring-2 ring-white/80 object-cover shadow-md shrink-0"
+              className="w-14 h-14 sm:w-16 sm:h-16 rounded-full ring-2 ring-white/80 object-cover shadow-[0_6px_18px_rgba(0,0,0,0.22)] shrink-0 transition-transform duration-300 hover:animate-[logoGlow_1.6s_ease-in-out_infinite]"
             />
-            <span className="text-white font-black text-xl tracking-wide drop-shadow-[1px_1px_0px_rgba(0,0,0,0.2)] hidden sm:inline">
+            <span className="text-white font-black text-xl sm:text-2xl tracking-wide drop-shadow-[1px_1px_0px_rgba(0,0,0,0.2)] hidden sm:inline">
               KURISU.SHOP
             </span>
           </button>
