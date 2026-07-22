@@ -1,27 +1,8 @@
 // src/components/AuthorCard.tsx
 import { useEffect, useState } from 'react';
+import type { Author } from '../types/author';
 
-export interface AuthorLink {
-  label: string;
-  url: string;
-}
-
-export interface Author {
-  id: string;
-  name: string;
-  productArtist?: string;
-  location: string;
-  bio: string;
-  philosophy: string;
-  avatarUrl: string;
-  socials: {
-    twitter?: string;
-    instagram?: string;
-    threads?: string;
-    orderForm?: string;
-  };
-  extraLinks?: AuthorLink[];
-}
+export type { Author, AuthorLink } from '../types/author';
 
 export function AuthorCard({ author, onSelect }: { author: Author; onSelect?: (author: Author) => void }) {
   const [isOpen, setIsOpen] = useState(false);

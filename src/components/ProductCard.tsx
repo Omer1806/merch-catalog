@@ -1,8 +1,8 @@
 import { useState, useRef } from 'react';
-import type { ArtistProduct } from '../mockData';
+import type { Product } from '../types/product';
 
 interface ProductCardProps {
-  product: ArtistProduct;
+  product: Product;
   onAddToCart: () => void;
 }
 

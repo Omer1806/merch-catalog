@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
-import type { ArtistProduct } from '../mockData';
-import type { Author } from './AuthorCard';
+import type { Product } from '../types/product';
+import type { Author } from '../types/author';
 
 interface AdminPanelProps {
-  products: ArtistProduct[];
+  products: Product[];
   authors: Author[];
-  onAddProduct: (product: ArtistProduct) => void;
+  onAddProduct: (product: Product) => void;
   onAddAuthor: (author: Author) => void;
-  onUpdateProduct: (product: ArtistProduct) => void;
+  onUpdateProduct: (product: Product) => void;
   onUpdateAuthor: (author: Author) => void;
   onClose: () => void;
 }
@@ -105,7 +105,7 @@ export default function AdminPanel({ products, authors, onAddProduct, onAddAutho
       return;
     }
 
-    const newProduct: ArtistProduct = {
+    const newProduct: Product = {
       id: editingProductId ?? 'prod-' + Date.now(),
       title: productForm.title,
       price: Number(productForm.price),

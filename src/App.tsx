@@ -1,13 +1,13 @@
-import { supabase } from './lib/supabase';
-import { useState, useEffect } from 'react';
-import type { Product } from "./types/product";
+import { useEffect, useMemo, useState } from 'react';
+import type { Product } from './types/product';
+import type { Author } from './types/author';
 import ProductCard from './components/ProductCard';
 import AdminPanel from './components/AdminPanel';
 import { AuthorCard } from './components/AuthorCard';
-import type { Author } from './components/AuthorCard';
-
+import { addProduct, getProducts, updateProduct } from './services/products';
+import { addAuthor, getAuthors, updateAuthor } from './services/authors';
 import logo from './assets/kurisu-shop-avatar.jpg';
-import FloatingImageLink from "./components/FloatingImageLink";
+import FloatingImageLink from './components/FloatingImageLink';
 
 interface CartItem {
   product: Product;
@@ -21,8 +21,16 @@ interface OrderForm {
   nova_poshta: string;
 }
 
+const PRODUCTS_PER_PAGE = 8;
+const cartStorageKey = 'kurisu-cart';
+const defaultOrderForm: OrderForm = {
+  name: '',
+  phone: '',
+  city: '',
+  nova_poshta: '',
+};
+
 export default function App() {
-  // Стан
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isCheckoutStage, setIsCheckoutStage] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
@@ -30,85 +38,91 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [orderSent, setOrderSent] = useState(false);
-
   const [selectedCategory, setSelectedCategory] = useState('Всі');
   const [selectedArtist, setSelectedArtist] = useState('Всі');
   const [sortOption, setSortOption] = useState<'default' | 'price-asc' | 'price-desc' | 'newest'>('default');
   const [currentPage, setCurrentPage] = useState(1);
-  const PRODUCTS_PER_PAGE = 8;
-
- const [products, setProducts] = useState<Product[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [authors, setAuthors] = useState<Author[]>([]);
   const [formErrors, setFormErrors] = useState<Partial<OrderForm>>({});
-  const [form, setForm] = useState<OrderForm>({
-    name: '', phone: '', city: '', nova_poshta: ''
-  });
-
+  const [form, setForm] = useState<OrderForm>(defaultOrderForm);
   const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('cart');
+    if (typeof window === 'undefined') return [];
+
+    const saved = window.localStorage.getItem(cartStorageKey);
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Ефекти
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart));
-  }, [cart]);
+    const fetchCatalog = async () => {
+      try {
+        const [productsFromSupabase, authorsFromSupabase] = await Promise.all([
+          getProducts(),
+          getAuthors(),
+        ]);
 
-  useEffect(() => {
-    const handleScroll = () => {
-      setIsHeaderScrolled(window.scrollY > 6);
+        setProducts(productsFromSupabase);
+        setAuthors(authorsFromSupabase);
+      } catch (error) {
+        console.error('Помилка завантаження каталогу:', error);
+      }
     };
 
-    handleScroll();
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    fetchCatalog();
   }, []);
 
   useEffect(() => {
-    setCurrentPage(1);
-  }, [searchQuery, selectedCategory, selectedArtist, sortOption]);
-// Імпорт товарів у Supabase (тимчасово)
-useEffect(() => {
-  async function fetchProducts() {
-    const { data, error } = await supabase
-      .from("products")
-      .select("*");
-
-    if (error) {
-      console.error("Помилка завантаження товарів:", error);
-      return;
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(cartStorageKey, JSON.stringify(cart));
     }
+  }, [cart]);
 
-    setProducts(data);
-  }
+  useEffect(() => {
+    const handleScroll = () => setIsHeaderScrolled(window.scrollY > 12);
 
-  fetchProducts();
-}, []);
-  // Фільтри
-  const categories = ['Всі', ...Array.from(new Set(products.map((p) => p.category)))];
-  const artists = ['Всі', ...Array.from(new Set(products.map((p) => p.artist)))];
+    handleScroll();
+    window.addEventListener('scroll', handleScroll);
 
-  const filteredProducts = products.filter((product) => {
-    const matchesSearch =
-      product.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.artist.toLowerCase().includes(searchQuery.toLowerCase());
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
-    const matchesCategory = selectedCategory === 'Всі' || product.category === selectedCategory;
-    const matchesArtist = selectedArtist === 'Всі' || product.artist === selectedArtist;
+  const categories = useMemo(
+    () => ['Всі', ...Array.from(new Set(products.map((product) => product.category)))],
+    [products]
+  );
 
-    return matchesSearch && matchesCategory && matchesArtist;
-  });
+  const artists = useMemo(
+    () => ['Всі', ...Array.from(new Set(products.map((product) => product.artist)))],
+    [products]
+  );
 
-  const sortedProducts = [...filteredProducts].sort((a, b) => {
-    if (sortOption === 'price-asc') return a.price - b.price;
-    if (sortOption === 'price-desc') return b.price - a.price;
-    if (sortOption === 'newest') {
-      return products.indexOf(b) - products.indexOf(a);
-    }
-    return 0;
-  });
+  const filteredProducts = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+
+    return products.filter((product) => {
+      const matchesSearch =
+        !normalizedQuery ||
+        product.title.toLowerCase().includes(normalizedQuery) ||
+        product.description.toLowerCase().includes(normalizedQuery) ||
+        product.category.toLowerCase().includes(normalizedQuery) ||
+        product.artist.toLowerCase().includes(normalizedQuery);
+
+      const matchesCategory = selectedCategory === 'Всі' || product.category === selectedCategory;
+      const matchesArtist = selectedArtist === 'Всі' || product.artist === selectedArtist;
+
+      return matchesSearch && matchesCategory && matchesArtist;
+    });
+  }, [products, searchQuery, selectedCategory, selectedArtist]);
+
+  const sortedProducts = useMemo(() => {
+    const nextProducts = [...filteredProducts];
+
+    if (sortOption === 'price-asc') return nextProducts.sort((a, b) => a.price - b.price);
+    if (sortOption === 'price-desc') return nextProducts.sort((a, b) => b.price - a.price);
+    if (sortOption === 'newest') return nextProducts.sort((a, b) => products.indexOf(b) - products.indexOf(a));
+
+    return nextProducts;
+  }, [filteredProducts, products, sortOption]);
 
   const totalPages = Math.max(1, Math.ceil(sortedProducts.length / PRODUCTS_PER_PAGE));
   const paginatedProducts = sortedProducts.slice(
@@ -116,40 +130,45 @@ useEffect(() => {
     currentPage * PRODUCTS_PER_PAGE
   );
 
-  // Обробники
   const handleAddToCart = (product: Product) => {
-    setCart((prev) => {
-      const existing = prev.find((i) => i.product.id === product.id);
-      return existing
-        ? prev.map((i) => i.product.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
-        : [...prev, { product, quantity: 1 }];
+    setCart((currentCart) => {
+      const existingItem = currentCart.find((item) => item.product.id === product.id);
+
+      if (existingItem) {
+        return currentCart.map((item) =>
+          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+
+      return [...currentCart, { product, quantity: 1 }];
     });
   };
 
   const handleIncreaseQuantity = (productId: string | number) => {
-    setCart((prev) =>
-      prev.map((i) =>
-        i.product.id === productId ? { ...i, quantity: i.quantity + 1 } : i
+    setCart((currentCart) =>
+      currentCart.map((item) =>
+        item.product.id === productId ? { ...item, quantity: item.quantity + 1 } : item
       )
     );
   };
 
   const handleDecreaseQuantity = (productId: string | number) => {
-    setCart((prev) =>
-      prev.map((i) =>
-        i.product.id === productId ? { ...i, quantity: Math.max(1, i.quantity - 1) } : i
+    setCart((currentCart) =>
+      currentCart.map((item) =>
+        item.product.id === productId ? { ...item, quantity: Math.max(1, item.quantity - 1) } : item
       )
     );
   };
 
   const handleRemoveFromCart = (productId: string | number) => {
-    setCart((prev) => prev.filter((i) => i.product.id !== productId));
+    setCart((currentCart) => currentCart.filter((item) => item.product.id !== productId));
   };
 
   const closeCart = () => {
     setIsCartOpen(false);
     setIsCheckoutStage(false);
     setOrderSent(false);
+    setFormErrors({});
   };
 
   useEffect(() => {
@@ -163,7 +182,6 @@ useEffect(() => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isCartOpen]);
 
-  // Повернення каталогу до початкового стану (клік по логотипу)
   const handleLogoClick = () => {
     setSearchQuery('');
     setSelectedCategory('Всі');
@@ -175,6 +193,7 @@ useEffect(() => {
 
   const handleSubmitOrder = async () => {
     const errors: Partial<OrderForm> = {};
+
     if (!form.name.trim()) errors.name = "Введіть ім'я";
     if (!/^\+380\d{9}$/.test(form.phone)) errors.phone = 'Формат: +380XXXXXXXXX';
     if (!form.city.trim()) errors.city = 'Введіть місто';
@@ -186,25 +205,74 @@ useEffect(() => {
     }
 
     setIsSending(true);
-    const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-    const itemsList = cart.map(i => `• ${i.product.title} x${i.quantity} — ${i.product.price * i.quantity} грн`).join('\n');
-    const message = `🛒 *Замовлення!*\n\n👤 ${form.name}\n📞 ${form.phone}\n🏙 ${form.city}\n📦 ${form.nova_poshta}\n\n${itemsList}\n\n💰 *Всього: ${total} грн*`;
 
-    
     try {
-  console.log("Замовлення:", message);
+      const total = cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+      const itemsList = cart
+        .map((item) => `• ${item.product.title} x${item.quantity} — ${item.product.price * item.quantity} грн`)
+        .join('\n');
+      const message = `🛒 *Замовлення!*
 
-  setOrderSent(true);
-  setCart([]);
-  setForm({
-    name: "",
-    phone: "",
-    city: "",
-    nova_poshta: "",
-  });
-} finally {
-  setIsSending(false);
-}
+👤 ${form.name}
+📞 ${form.phone}
+🏙 ${form.city}
+📦 ${form.nova_poshta}
+
+${itemsList}
+
+💰 *Всього: ${total} грн*`;
+
+      console.log('Замовлення:', message);
+      setOrderSent(true);
+      setCart([]);
+      setForm(defaultOrderForm);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleAddProduct = async (product: Product) => {
+    try {
+      await addProduct(product);
+      const nextProducts = await getProducts();
+      setProducts(nextProducts);
+    } catch (error) {
+      console.error(error);
+      alert('Не вдалося додати товар');
+    }
+  };
+
+  const handleUpdateProduct = async (product: Product) => {
+    try {
+      await updateProduct(product);
+      const nextProducts = await getProducts();
+      setProducts(nextProducts);
+    } catch (error) {
+      console.error(error);
+      alert('Не вдалося оновити товар');
+    }
+  };
+
+  const handleAddAuthor = async (author: Author) => {
+    try {
+      await addAuthor(author);
+      const nextAuthors = await getAuthors();
+      setAuthors(nextAuthors);
+    } catch (error) {
+      console.error(error);
+      alert('Не вдалося додати автора');
+    }
+  };
+
+  const handleUpdateAuthor = async (author: Author) => {
+    try {
+      await updateAuthor(author);
+      const nextAuthors = await getAuthors();
+      setAuthors(nextAuthors);
+    } catch (error) {
+      console.error(error);
+      alert('Не вдалося оновити автора');
+    }
   };
 
   return (
@@ -258,7 +326,10 @@ useEffect(() => {
               type="text"
               placeholder="Пошук..."
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               className="w-full rounded-full pl-10 pr-4 py-2.5 bg-white/95 text-black text-sm placeholder-gray-400 border-none outline-none focus:ring-2 focus:ring-white transition"
             />
           </div>
@@ -293,7 +364,10 @@ useEffect(() => {
               {categories.map((category) => (
                 <button
                   key={category}
-                  onClick={() => setSelectedCategory(category)}
+                  onClick={() => {
+                    setSelectedCategory(category);
+                    setCurrentPage(1);
+                  }}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 border-black transition whitespace-nowrap ${
                     selectedCategory === category
                       ? 'bg-[#FF4FA3] text-white shadow-[2px_2px_0px_rgba(0,0,0,1)]'
@@ -310,7 +384,10 @@ useEffect(() => {
               {artists.map((artist) => (
                 <button
                   key={artist}
-                  onClick={() => setSelectedArtist(artist)}
+                  onClick={() => {
+                    setSelectedArtist(artist);
+                    setCurrentPage(1);
+                  }}
                   className={`px-4 py-1.5 rounded-full text-xs font-bold border-2 border-black transition whitespace-nowrap ${
                     selectedArtist === artist
                       ? 'bg-[#FFB37B] text-black shadow-[2px_2px_0px_rgba(0,0,0,1)]'
@@ -327,7 +404,10 @@ useEffect(() => {
             <span className="text-xs font-black uppercase tracking-wider text-gray-500 whitespace-nowrap">Сортування:</span>
             <select
               value={sortOption}
-              onChange={(e) => setSortOption(e.target.value as typeof sortOption)}
+              onChange={(e) => {
+                setSortOption(e.target.value as typeof sortOption);
+                setCurrentPage(1);
+              }}
               className="px-3 py-1.5 rounded-full text-xs font-bold border-2 border-black bg-gray-50 text-gray-700 cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#FF4FA3]"
             >
               <option value="default">За замовчуванням</option>
@@ -349,7 +429,10 @@ useEffect(() => {
             <AuthorCard
               key={author.id}
               author={author}
-              onSelect={(selectedAuthor) => setSelectedArtist(selectedAuthor.productArtist ?? selectedAuthor.name)}
+              onSelect={(selectedAuthor) => {
+                setSelectedArtist(selectedAuthor.productArtist ?? selectedAuthor.name);
+                setCurrentPage(1);
+              }}
             />
           ))}
         </div>
@@ -577,10 +660,10 @@ useEffect(() => {
         <AdminPanel
           products={products}
           authors={authors}
-          onAddProduct={(p) => setProducts([...products, p])}
-          onAddAuthor={(a) => setAuthors([...authors, a])}
-          onUpdateProduct={(updatedProduct) => setProducts(products.map((product) => product.id === updatedProduct.id ? updatedProduct : product))}
-          onUpdateAuthor={(updatedAuthor) => setAuthors(authors.map((author) => author.id === updatedAuthor.id ? updatedAuthor : author))}
+          onAddProduct={handleAddProduct}
+          onAddAuthor={handleAddAuthor}
+          onUpdateProduct={handleUpdateProduct}
+          onUpdateAuthor={handleUpdateAuthor}
           onClose={() => setIsAdminOpen(false)}
         />
       )}
